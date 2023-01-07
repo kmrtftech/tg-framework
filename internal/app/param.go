@@ -1,0 +1,88 @@
+package app
+
+import (
+	"errors"
+	"path/filepath"
+	"strings"
+
+	"github.com/kmrtftech/tg-framework/pkg/typgo"
+	"github.com/urfave/cli/v2"
+)
+
+type (
+	// Param for typical-go
+	Param struct {
+		TypicalBuild string
+		TypicalTmp   string
+		ProjectPkg   string
+		ProjectName  string
+		SetupTarget  string
+	}
+)
+
+var (
+	// TypicalTmpParam typical-tmp param
+	TypicalTmpParam = "typical-tmp"
+	// DefaultTypicalTmp typical-tmp default value
+	DefaultTypicalTmp = ".typical-tmp"
+	// TypicalBuildParam typical-build param
+	TypicalBuildParam = "typical-build"
+	// DefaultTypicalBuild typical-build default value
+	DefaultTypicalBuild = "tools/typical-build"
+	// ProjectPkgParam project-pkg param
+	ProjectPkgParam = "project-pkg"
+	typicalTmpFlag  = &cli.StringFlag{
+		Name:  TypicalTmpParam,
+		Usage: "Temporary directory location to save builds-related files",
+		Value: DefaultTypicalTmp,
+	}
+	typicalBuildFlag = &cli.StringFlag{
+		Name:  TypicalBuildParam,
+		Usage: "Typical-Build source code location",
+		Value: DefaultTypicalBuild,
+	}
+	projectPkgFlag = &cli.StringFlag{
+		Name:  ProjectPkgParam,
+		Usage: "Project package name. Same with module package in go.mod by default",
+	}
+)
+
+// GetParam get param
+func GetParam(c *typgo.Context) (*Param, error) {
+	projectPkg := c.String(ProjectPkgParam)
+	setupTarget := ""
+	if projectPkg == "" {
+		var err error
+		projectPkg, err = retrieveProjPkg(c)
+		if err != nil {
+			return nil, err
+		}
+		setupTarget = "."
+	} else {
+		setupTarget = filepath.Base(projectPkg)
+	}
+
+	return &Param{
+		TypicalBuild: c.String(TypicalBuildParam),
+		TypicalTmp:   c.String(TypicalTmpParam),
+		ProjectPkg:   projectPkg,
+		ProjectName:  filepath.Base(projectPkg),
+		SetupTarget:  setupTarget,
+	}, nil
+}
+
+func retrieveProjPkg(c *typgo.Context) (string, error) {
+	var stdout strings.Builder
+	var stderr strings.Builder
+	cmd := &typgo.Command{
+		Name:   "go",
+		Args:   []string{"list", "-m"},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}
+	if err := c.ExecuteCommand(cmd); err != nil {
+		return "", errors.New(err.Error() + ": " + stderr.String())
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
